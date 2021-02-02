@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
@@ -14,15 +14,76 @@ public class BodyPlaybackMachine : MonoBehaviour
     public static long RECFILE_MAX_SIZE = 100000000000000;
     public bool _playingBack = false;
 
-    public void StartRecordingGesture() 
+    Thread rec_thrd;
+
+    public void Start()
+    {
+        Thread t = new Thread(new ThreadStart(Test));
+        t.IsBackground = true;
+        t.Start();
+    }
+    public void Test() // Will Register then PlayBack 
+    {
+        // first verify files folder
+        VerifyFiles();
+        // record gesture during like 30 000 ms
+        StartRecordingGesture();
+        string nextfp = GetNewRecordFilePath(Application.persistentDataPath + "/" + this.GetComponent<AvatarScript>()._nickname);
+        Thread.Sleep(30000);
+        if (StopRecordingGesture()) 
+        {
+            // disabling net mov sync for the moment ( for solo test )
+            GameObject.Find("XR Rig").transform.Find("Camera Offset").GetComponent<MovSync>().enabled = false;
+            StartPlayBack(nextfp, false, 0, int.MaxValue);
+        }
+   
+       
+    }
+
+
+    public void VerifyFiles() 
+    {
+        // we are 5 . Lionel, Theo, Mathilde, Gael, Florent
+
+        string[] avatar_nickname = new string[5] { "Lionel", "Theo", "Mathilde", "Gael", "Florent" };
+        foreach ( string s in avatar_nickname) 
+        {
+            if (!Directory.Exists(Application.persistentDataPath + "/"+s))
+            {
+                Directory.CreateDirectory(Application.persistentDataPath + "/"+s);
+            }
+        }
+    }
+    public string GetNewRecordFilePath(string directoryPath)
+    {
+        string[] files = Directory.GetFiles(directoryPath);
+        return directoryPath + "/" + files.Length.ToString();
+    }
+    public void StartRecordingGesture()
     {
         // First Generate A File depending on User ID, username
 
-        Thread t = new Thread(new ThreadStart(RecordGesture));
-        t.IsBackground = true;
-        t.Start(); 
+        rec_thrd = new Thread(new ThreadStart(RecordGesture));
+        rec_thrd.IsBackground = true;
+        rec_thrd.Start();
 
     }
+    public bool StopRecordingGesture()
+    {
+        // First Generate A File depending on User ID, username
+        try 
+        {
+            if (rec_thrd.IsAlive) rec_thrd.Abort();
+            return true;
+        }
+        catch (Exception e) 
+        {
+            return false;
+        }
+       
+      
+    }
+
 
     public void RecordGesture() // /!\  __ We need to record offset from body for head and controllers part __ /!\
     {
@@ -31,9 +92,8 @@ public class BodyPlaybackMachine : MonoBehaviour
         GameObject head = this.transform.Find("Head").gameObject;
         GameObject Body = this.transform.Find("Center").gameObject;
         /*-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- Just For testing Purpose. File setup -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- */
-        
-        string filePath = Application.persistentDataPath + "/rectest";
 
+        string filePath = GetNewRecordFilePath(Application.persistentDataPath + "/" + this.GetComponent<AvatarScript>()._nickname);
         File.WriteAllBytes(filePath, new byte[0]); // better than File.Create or File.Delete
 
         /*-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- Add the Starting Time of the Record -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- */
@@ -243,7 +303,7 @@ public class BodyPlaybackMachine : MonoBehaviour
 
         foreach ( GameObject go in Concurrents) 
         {
-            if ( go == this.gameObject) { } // do nothing? a voir + tard .... 
+          
 
 
             // [0] Get the stream of the player  
@@ -282,7 +342,8 @@ public class BodyPlaybackMachine : MonoBehaviour
             int TrainingSetLength = c; 
             // [3] Get the offsets. searching a Deja Vu
 
-            string[] rcFiles = new string[0]; // should get all files in folder of specific go character ! 
+            string[] rcFiles = Directory.GetFiles(Application.persistentDataPath + "/" + go.GetComponent<AvatarScript>()._nickname); 
+            // should get all files in folder of specific go character ! 
 
             foreach( string s in rcFiles)
             {
@@ -324,7 +385,7 @@ public class BodyPlaybackMachine : MonoBehaviour
                         msOffset = offset;
 ;                       break; 
                     }
-                    offset ++; // this will cause huge computation but dont have another idea for the moment
+                    offset++;//+= TrainingSetLength;
                 }
                 if ( msOffset != -1 ) { break;  } // stop if we match someone
             }
@@ -337,7 +398,8 @@ public class BodyPlaybackMachine : MonoBehaviour
         {
             // Get the msOffset needed 
             // search for a matching time in our rec files 
-            string[] rcFiles = new string[0]; // should get all files in folder of specific go character ! 
+            string[] rcFiles = Directory.GetFiles(Application.persistentDataPath + "/" + this.GetComponent<AvatarScript>()._nickname);  
+            // should get all files in folder of this character ! 
             foreach ( string s in rcFiles) 
             {
                 uint ts = BitConverter.ToUInt32(GetBytesFromFile(0, 4, s),0);
