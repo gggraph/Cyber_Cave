@@ -324,7 +324,7 @@ public class BodyPlaybackMachine : MonoBehaviour
                         msOffset = offset;
 ;                       break; 
                     }
-                    offset += TrainingSetLength;
+                    offset ++; // this will cause huge computation but dont have another idea for the moment
                 }
                 if ( msOffset != -1 ) { break;  } // stop if we match someone
             }
