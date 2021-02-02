@@ -14,29 +14,54 @@ public class BodyPlaybackMachine : MonoBehaviour
     public static long RECFILE_MAX_SIZE = 100000000000000;
     public bool _playingBack = false;
 
-    Thread rec_thrd;
+    public string _dataPath;
 
+    Coroutine rec_thrd;
+   // string _mynickname;
+    
     public void Start()
     {
-        Thread t = new Thread(new ThreadStart(Test));
-        t.IsBackground = true;
-        t.Start();
+
+        _dataPath = Application.persistentDataPath;
+        // Thread t = new Thread(new ThreadStart(Test));
+        //  t.IsBackground = true;
+        //   t.Start();
+        StartCoroutine(Test());
     }
-    public void Test() // Will Register then PlayBack 
+    public IEnumerator Test() // Will Register then PlayBack 
     {
+        yield return new WaitForSeconds(5f);
+        UnityEngine.Debug.Log(_dataPath);
         // first verify files folder
         VerifyFiles();
+        GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "file Ok";
         // record gesture during like 30 000 ms
+        string nextfp = GetNewRecordFilePath(_dataPath + "/" + this.GetComponent<AvatarScript>()._nickname);
+        GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "rec start";
         StartRecordingGesture();
-        string nextfp = GetNewRecordFilePath(Application.persistentDataPath + "/" + this.GetComponent<AvatarScript>()._nickname);
-        Thread.Sleep(30000);
+
+        yield return new WaitForSeconds(30f); // wait 10f
+        //StopCoroutine(rec_thrd);
+        GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "rec end";
+       
         if (StopRecordingGesture()) 
         {
+            GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "starting playback";
             // disabling net mov sync for the moment ( for solo test )
             GameObject.Find("XR Rig").transform.Find("Camera Offset").GetComponent<MovSync>().enabled = false;
-            StartPlayBack(nextfp, false, 0, int.MaxValue);
+            while (true) 
+            {
+                if (!_playingBack) 
+                {
+                    StartPlayBack(nextfp, false, 0, int.MaxValue);
+                }
+              
+                yield return new WaitForSeconds(1f); // w
+            }
+           
         }
-   
+        yield return 0;
+       
        
     }
 
@@ -48,9 +73,9 @@ public class BodyPlaybackMachine : MonoBehaviour
         string[] avatar_nickname = new string[5] { "Lionel", "Theo", "Mathilde", "Gael", "Florent" };
         foreach ( string s in avatar_nickname) 
         {
-            if (!Directory.Exists(Application.persistentDataPath + "/"+s))
+            if (!Directory.Exists(_dataPath + "/"+s))
             {
-                Directory.CreateDirectory(Application.persistentDataPath + "/"+s);
+                Directory.CreateDirectory(_dataPath + "/"+s);
             }
         }
     }
@@ -61,31 +86,21 @@ public class BodyPlaybackMachine : MonoBehaviour
     }
     public void StartRecordingGesture()
     {
-        // First Generate A File depending on User ID, username
 
-        rec_thrd = new Thread(new ThreadStart(RecordGesture));
-        rec_thrd.IsBackground = true;
-        rec_thrd.Start();
+        rec_thrd = StartCoroutine(RecordGesture());
 
     }
     public bool StopRecordingGesture()
     {
         // First Generate A File depending on User ID, username
-        try 
-        {
-            if (rec_thrd.IsAlive) rec_thrd.Abort();
-            return true;
-        }
-        catch (Exception e) 
-        {
-            return false;
-        }
+        StopCoroutine(rec_thrd);
+        return true;
        
       
     }
 
 
-    public void RecordGesture() // /!\  __ We need to record offset from body for head and controllers part __ /!\
+    public IEnumerator RecordGesture() // /!\  __ We need to record offset from body for head and controllers part __ /!\
     {
         GameObject rightHand = this.transform.Find("RightHand").gameObject;
         GameObject leftHand = this.transform.Find("LeftHand").gameObject;
@@ -93,13 +108,14 @@ public class BodyPlaybackMachine : MonoBehaviour
         GameObject Body = this.transform.Find("Center").gameObject;
         /*-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- Just For testing Purpose. File setup -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- */
 
-        string filePath = GetNewRecordFilePath(Application.persistentDataPath + "/" + this.GetComponent<AvatarScript>()._nickname);
+        string filePath = GetNewRecordFilePath(_dataPath + "/" + this.GetComponent<AvatarScript>()._nickname);
         File.WriteAllBytes(filePath, new byte[0]); // better than File.Create or File.Delete
 
         /*-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- Add the Starting Time of the Record -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- */
         uint unixTimestamp = (uint)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
         AppendBytesToFile(filePath, BitConverter.GetBytes(unixTimestamp));
-
+        UnityEngine.Debug.Log(BitConverter.GetBytes(unixTimestamp).Length);
+        Vector3 cPos = new Vector3();
         while (true) 
         {
             /*-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- RECORD DATA STRUCTURE -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- */
@@ -123,7 +139,7 @@ public class BodyPlaybackMachine : MonoBehaviour
                     case 3: o = leftHand; break; 
                 
                 }
-                if (o == null) return;// Print an error
+                if (o == null) { UnityEngine.Debug.Log("object was null"); yield break; }// Print an error
                 // we can check how many records we can do before breaking File Max Length . But dont play with this for the moment. 
 
                 // all are float32 (single precision)
@@ -132,48 +148,53 @@ public class BodyPlaybackMachine : MonoBehaviour
                 // should be offsets and not raw Vector Value if not body (i>0)
                 if ( i == 0) 
                 {
+                    cPos = o.transform.position;
                     rc = AddBytesToList(rc, BitConverter.GetBytes(o.transform.position.x));
                     rc = AddBytesToList(rc, BitConverter.GetBytes(o.transform.position.y));
                     rc = AddBytesToList(rc, BitConverter.GetBytes(o.transform.position.z));
+                  //  UnityEngine.Debug.Log(rc.Count + o.transform.position.ToString());
                 }
                 else 
                 {
 
-                    Vector3 offset = Body.transform.position - o.transform.position; // carefull here for the order
+                    Vector3 offset = cPos - o.transform.position; // carefull here for the order
                     rc = AddBytesToList(rc, BitConverter.GetBytes(offset.x));
                     rc = AddBytesToList(rc, BitConverter.GetBytes(offset.y));
                     rc = AddBytesToList(rc, BitConverter.GetBytes(offset.z));
+                  //  UnityEngine.Debug.Log(rc.Count);
                 }
-                
 
-                Vector3 rot = o.transform.rotation.eulerAngles.GetXCorrectedEuler();
+
+                Vector3 rot = o.transform.localEulerAngles;
                 rc = AddBytesToList(rc, BitConverter.GetBytes(rot.x));
                 rc = AddBytesToList(rc, BitConverter.GetBytes(rot.y));
                 rc = AddBytesToList(rc, BitConverter.GetBytes(rot.z));
+               // UnityEngine.Debug.Log(rc.Count);
 
-                AppendBytesToFile(filePath, ListToByteArray(rc)); 
+              
             }
-
-
-            Thread.Sleep(40);// should be the same as Playback
+            AppendBytesToFile(filePath, ListToByteArray(rc));
+            UnityEngine.Debug.Log(rc.Count);
+            yield return new WaitForSeconds(0.04f);
+            
+            // break;
+            //Thread.Sleep(40);// should be the same as Playback
             // some additional info:
             // generate 2500 bytes per second (96*25) (so like 0.0025 mb)
             // so 1000 second will weight 2.5mb ( 16 minutes average )2500000
         }
+        yield return 0;
 
     }
     public void StartPlayBack(string filePath, bool _updateRawPosition, int msOffset, int frameLength)
     {
         _playingBack = true;
-        new Thread(() =>
-        {
-            Thread.CurrentThread.IsBackground = true;
-            PlayBack(filePath, _updateRawPosition, msOffset, frameLength );
-        }).Start();
+     
+        StartCoroutine(PlayBack(filePath, _updateRawPosition, msOffset, frameLength));
 
     }
 
-    public void PlayBack(string filePath, bool _updateRawPosition, int msOffset, int frameLenght) 
+    public IEnumerator PlayBack(string filePath, bool _updateRawPosition, int msOffset, int frameLenght) 
     {
         GameObject rightHand = this.transform.Find("RightHand").gameObject;
         GameObject leftHand = this.transform.Find("LeftHand").gameObject;
@@ -185,18 +206,24 @@ public class BodyPlaybackMachine : MonoBehaviour
         long fileLength = new FileInfo(filePath).Length;
         Vector3 cPos = new Vector3();
         // float in Unity are 4 bytes
-        
+      
         // Skip at msOffset
         byteOffset += 96 * msOffset;
 
         int frameCounter = 0;
+        byte[] RAWDATA = File.ReadAllBytes(filePath);
 
+        GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = fileLength.ToString();
         while ( byteOffset < fileLength) 
         {
             // get the next 24 bytes for offset
             // 24 bytes foreach. 96 bytes for all 4 objects
-            byte[] data = GetBytesFromFile(byteOffset, 96, filePath);
-
+            //byte[] data = GetBytesFromFile(byteOffset, 96, filePath); // memorymappedfiles not working
+            byte[] data = new byte[96];
+            for (long i = byteOffset; i < byteOffset+96; i++) 
+            {
+                data[i-byteOffset] = RAWDATA[i];
+            }
             int byteOffsetB = 0; 
 
             for (int i = 0; i < 4; i++) 
@@ -210,13 +237,13 @@ public class BodyPlaybackMachine : MonoBehaviour
                     case 3: o = leftHand; break; 
                 
                 }
-                if (o == null) return; // Print an error
+                if (o == null) { GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "problem"; yield break; }// Print an error
 
                 // de-Serialization
 
                 float pX, pY, pZ, rX, rY, rZ; // float will need 
 
-                pX = BitConverter.ToSingle(data, byteOffsetB); 
+                pX = BitConverter.ToSingle(data, byteOffsetB); // j'ai limpression que ca ne marche pas
                 byteOffsetB += 4;
                 pY = BitConverter.ToSingle(data, byteOffsetB);
                 byteOffsetB += 4;
@@ -232,30 +259,34 @@ public class BodyPlaybackMachine : MonoBehaviour
                 if ( i == 0) 
                 { 
                     cPos = new Vector3(pX, pY, pZ);
-                    if (_updateRawPosition) o.transform.position = cPos; 
+                    if (_updateRawPosition) o.transform.position = cPos;
+                    GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = cPos.ToString();
                 }
                 else 
                 {
-                    Vector3 oPos = cPos + new Vector3(pX, pY, pZ); // dont know if we should use + or - here .... we will see
+                    Vector3 oPos = cPos - new Vector3(pX, pY, pZ); // c'était bien le moins
                     o.transform.position = oPos;
                 }
-                
-                o.transform.Rotate(rX, rY, rZ); // probably bad... 
+                o.transform.localEulerAngles = new Vector3(rX, rY, rZ);
 
             }
             frameCounter++; 
             if ( frameCounter == frameLenght) { break; }
-            byteOffset += 96; 
-            Thread.Sleep(40); // should be the same as RecordGesture
+            byteOffset += 96;
+            UnityEngine.Debug.Log(byteOffset);
+            yield return new WaitForSeconds(0.04f);// should be the same as RecordGesture
         }
+        GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "ending playback";
         _playingBack = false;
-
+      
     }
 
 
     // Do MachineIsAParrot inside a thread. 
-    public void MachineIsAParrot() 
+    public IEnumerator MachineIsAParrot() 
     {
+        // should be done each by each avatar to avoid memory protected access
+        // should not reading rec files that is currently recording
         while ( true) 
         {
         
@@ -263,7 +294,7 @@ public class BodyPlaybackMachine : MonoBehaviour
             {
                 FakeMePlease();
             }
-            Thread.Sleep(2000); // just a  delay to avoid huge computation...
+            yield return new WaitForSeconds(2f); // just a  delay to avoid huge computation...
         }
        
     }
@@ -342,7 +373,7 @@ public class BodyPlaybackMachine : MonoBehaviour
             int TrainingSetLength = c; 
             // [3] Get the offsets. searching a Deja Vu
 
-            string[] rcFiles = Directory.GetFiles(Application.persistentDataPath + "/" + go.GetComponent<AvatarScript>()._nickname); 
+            string[] rcFiles = Directory.GetFiles(_dataPath + "/" + go.GetComponent<AvatarScript>()._nickname); 
             // should get all files in folder of specific go character ! 
 
             foreach( string s in rcFiles)
@@ -398,7 +429,7 @@ public class BodyPlaybackMachine : MonoBehaviour
         {
             // Get the msOffset needed 
             // search for a matching time in our rec files 
-            string[] rcFiles = Directory.GetFiles(Application.persistentDataPath + "/" + this.GetComponent<AvatarScript>()._nickname);  
+            string[] rcFiles = Directory.GetFiles(_dataPath + "/" + this.GetComponent<AvatarScript>()._nickname);  
             // should get all files in folder of this character ! 
             foreach ( string s in rcFiles) 
             {
