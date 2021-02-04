@@ -19,6 +19,7 @@ public class Souvenir : MonoBehaviour
             {
                 DoABark(go);
             }
+            // do we yield sleep to avoid huge computation?
         }
         yield return 0;
    }
