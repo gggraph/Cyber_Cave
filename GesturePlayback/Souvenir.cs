@@ -15,7 +15,7 @@ public class Souvenir : MonoBehaviour
         GameObject[] Players = GameObject.FindGameObjectsWithTag("Avatar");
         foreach ( GameObject go in Players) 
         {
-            if ( go.GetComponent<PhotonView>() != null && !go.GetComponent<GestureSaver>()._playingBack) 
+            if ( go.GetComponent<PhotonView>() == null && !go.GetComponent<GestureSaver>()._playingBack) 
             {
                 DoABark(go);
             }
