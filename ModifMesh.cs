@@ -6,8 +6,8 @@ using System;
 public class ModifMesh : MonoBehaviour
 {
     // Start is called before the first frame update
-    GameObject rightHandObj;
-    GameObject leftHandObj;
+    OVRBone rightHandObj;
+    OVRBone leftHandObj;
    // GameObject RIG;
     public Mesh mesh;
     public Vector3[] vertices;
@@ -16,18 +16,20 @@ public class ModifMesh : MonoBehaviour
     public Coroutine ModThread;
     public Coroutine MovThread;
 
-    List<GrabbedVertice> _grabbedVertices = new List<GrabbedVertice>();
+    public  List<GrabbedVertice> _grabbedVertices = new List<GrabbedVertice>();
 
     bool needOpti = false;
 
-    class GrabbedVertice 
+    public class GrabbedVertice 
     {
         public Vector3 Offset { get; set; }
         public uint VerticesIndex { get; set; }
-        public GrabbedVertice(Vector3 offset, uint verticesIndex) 
+        public bool _isLeftHand { get; set; }
+        public GrabbedVertice(Vector3 offset, uint verticesIndex, bool isLeftHand) 
         {
             this.Offset = offset;
             this.VerticesIndex = verticesIndex;
+            this._isLeftHand = isLeftHand;
         
         }
     
@@ -42,9 +44,9 @@ public class ModifMesh : MonoBehaviour
     }
     public void ForceStart()
     {
-       
-        leftHandObj = GameObject.Find("OVRlefthand");
-        rightHandObj = GameObject.Find("OVRrighthand");
+        _grabbedVertices = new List<GrabbedVertice>(); 
+        leftHandObj = GameObject.Find("OVRlefthand").GetComponent<OVRSkeleton>().Bones[10]; // corresponding to mid majeur bones when down
+        rightHandObj = GameObject.Find("OVRrighthand").GetComponent<OVRSkeleton>().Bones[10];// corresponding to mid majeur bones when down
         mesh = GetComponent<MeshFilter>().mesh;
         vertices = mesh.vertices;
         boundaries = GetComponent<MeshRenderer>().bounds;
@@ -56,15 +58,15 @@ public class ModifMesh : MonoBehaviour
 
     public IEnumerator StartDeplacingFullMesh() 
     {
-        if (boundaries.Contains(rightHandObj.transform.position) || !needOpti)
+        if (boundaries.Contains(rightHandObj.Transform.position) || !needOpti)
         {
             bool leftInside = false;
             bool rightInside = false; 
             for (uint i = 0; i < vertices.Length; i++)
             {
                 Vector3 v = transform.TransformPoint(vertices[i]);
-                float distA = Mathf.Abs(Vector3.Distance(v, rightHandObj.transform.position));
-                float distB = Mathf.Abs(Vector3.Distance(v, leftHandObj.transform.position));
+                float distA = Mathf.Abs(Vector3.Distance(v, rightHandObj.Transform.position));
+                float distB = Mathf.Abs(Vector3.Distance(v, leftHandObj.Transform.position));
                 if (distA < 0.15f) // treshold a definir
                 {
 
@@ -86,7 +88,7 @@ public class ModifMesh : MonoBehaviour
                 }
                 catch { }
 
-                Vector3 offset = rightHandObj.transform.position - this.transform.position;
+                Vector3 offset = rightHandObj.Transform.position - this.transform.position;
                 MovThread = StartCoroutine(MoveEntireMesh(offset));
             }
 
@@ -111,7 +113,7 @@ public class ModifMesh : MonoBehaviour
         byte syncCounter = 0;
         while (true)
         {
-            this.transform.position = rightHandObj.transform.position - offset;
+            this.transform.position = rightHandObj.Transform.position - offset;
             yield return new WaitForSeconds(0.1f);
             syncCounter++;
             if (syncCounter == 4)
@@ -136,37 +138,47 @@ public class ModifMesh : MonoBehaviour
         {
             syncVertData.Add((byte)this.name.ToCharArray()[i]);
         }
-        syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(this.transform.position.x));
-        syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(this.transform.position.y));
-        syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(this.transform.position.z));
-        syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(this.transform.localEulerAngles.x));
-        syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(this.transform.localEulerAngles.y));
-        syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(this.transform.localEulerAngles.z));
+        Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(this.transform.position.x));
+        Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(this.transform.position.y));
+        Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(this.transform.position.z));
+        Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(this.transform.localEulerAngles.x));
+        Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(this.transform.localEulerAngles.y));
+        Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(this.transform.localEulerAngles.z));
 
         GameObject[] allAvatar = GameObject.FindGameObjectsWithTag("Avatar");
         foreach (GameObject go in allAvatar)
         {
             if (go.GetComponent<DataReceiver>()._isMine)
             {
-                go.GetComponent<DataReceiver>().SendData(ListToByteArray(syncVertData));
+                go.GetComponent<DataReceiver>().SendData(syncVertData.ToArray());
                 return;
             }
         }
     }
-    // 
-    public IEnumerator GetVerticesNearHand() 
+    // ------------------------------------------------> NEED TO AUTORISE LEFTHAND
+    public IEnumerator GetVerticesNearHand( bool _isLeftHand) 
     {
-        _grabbedVertices = new List<GrabbedVertice>();
-        if (boundaries.Contains(rightHandObj.transform.position) || !needOpti)
+        OVRBone HandBone; 
+        if ( _isLeftHand)
+        {
+            HandBone = leftHandObj;
+        }
+        else
+        {
+            HandBone = rightHandObj;
+        }
+
+        //_grabbedVertices = new List<GrabbedVertice>(); // nop :) 
+        if (boundaries.Contains(HandBone.Transform.position) || !needOpti)
         {
 
             for (uint i = 0; i < vertices.Length; i++)
             {
                 Vector3 v = transform.TransformPoint(vertices[i]);
-                float dist = Mathf.Abs(Vector3.Distance(v, rightHandObj.transform.position));
+                float dist = Mathf.Abs(Vector3.Distance(v, HandBone.Transform.position));
                 if (dist < 0.08f) // treshold a definir
                 {
-                    Vector3 offset = rightHandObj.transform.position - v;
+                    Vector3 offset = HandBone.Transform.position - v;
                     bool iscontained = false;
                     foreach ( GrabbedVertice g in _grabbedVertices) 
                     {
@@ -177,7 +189,7 @@ public class ModifMesh : MonoBehaviour
                     }
                     if ( !iscontained) 
                     {
-                        _grabbedVertices.Add(new GrabbedVertice(offset, i));
+                        _grabbedVertices.Add(new GrabbedVertice(offset, i, _isLeftHand));
                     }
                    
                
@@ -185,13 +197,60 @@ public class ModifMesh : MonoBehaviour
             }
         
         }
-        try
+
+        if ( !modCo_isrunning) // only launch new coroutine if not running actually
         {
-            StopCoroutine(ModThread);
+            try
+            {
+                StopCoroutine(ModThread); // stop the coroutine ????
+                modCo_isrunning = false;
+            }
+            catch { }
+            ModThread = StartCoroutine(UpdateGrabbedVerticesPosition()); // this is ok but 
         }
-        catch { }
-        ModThread = StartCoroutine(UpdateGrabbedVerticesPosition());
+        
         yield return 0;
+    }
+    GameObject dbgtext;
+    public void PrintInfo(string s)
+    {
+        if (dbgtext == null)
+            dbgtext = GameObject.Find("DEBUG");
+
+        dbgtext.GetComponent<UnityEngine.UI.Text>().text = s;
+    }
+    public int ucall = 0;
+    public void StopGrabbingVertices(bool _isLeftHand) // will send info to other clients 
+    {
+        ucall++;
+        // always called
+        // delete all lefthand instance. if _grabbedVertices . count = 0 stop the coroutine
+
+        // only released hand assign vertices
+        List<GrabbedVertice> newgv = new List<GrabbedVertice>(); 
+        foreach ( GrabbedVertice gv in _grabbedVertices)
+        {
+            if ( gv._isLeftHand != _isLeftHand)
+            {
+                newgv.Add(gv);
+            }
+        }
+        
+        _grabbedVertices = newgv;
+        PrintInfo(ucall.ToString() + ":"+_grabbedVertices.Count.ToString() + " " + _isLeftHand.ToString());
+
+        if ( _grabbedVertices.Count == 0)
+        {
+            _grabbedVertices = new List<GrabbedVertice>(); // not so needed
+            try
+            {
+                StopCoroutine(ModThread);
+                modCo_isrunning = false;
+            }
+            catch { }
+        }
+        SendVerticesUpdatedForSync();
+
     }
     public void SendVerticesUpdatedForSync() 
     {
@@ -227,10 +286,10 @@ public class ModifMesh : MonoBehaviour
         foreach (GrabbedVertice g in _grabbedVertices)
         {
             // vertices index
-            syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(g.VerticesIndex));
-            syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(vertices[g.VerticesIndex].x));
-            syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(vertices[g.VerticesIndex].y));
-            syncVertData = AddBytesToList(syncVertData, BitConverter.GetBytes(vertices[g.VerticesIndex].z));
+            Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(g.VerticesIndex));
+            Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(vertices[g.VerticesIndex].x));
+            Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(vertices[g.VerticesIndex].y));
+            Utils.AddBytesToList(ref syncVertData, BitConverter.GetBytes(vertices[g.VerticesIndex].z));
         }
 
         GameObject[] allAvatar = GameObject.FindGameObjectsWithTag("Avatar");
@@ -238,31 +297,32 @@ public class ModifMesh : MonoBehaviour
         {
             if (go.GetComponent<DataReceiver>()._isMine)
             {
-                go.GetComponent<DataReceiver>().SendData(ListToByteArray(syncVertData));
+                go.GetComponent<DataReceiver>().SendData(syncVertData.ToArray());
                 return;
             }
         }
 
     }
-    public void StopGrabbingVertices() // will send info to other clients 
-    {
-        try
-        {
-            StopCoroutine(ModThread);
-        }
-        catch { }
-
-        SendVerticesUpdatedForSync();
-
-    }
+    private bool modCo_isrunning = false;
     IEnumerator UpdateGrabbedVerticesPosition() 
     {
+        modCo_isrunning = true;
         byte syncCounter = 0; 
         while ( true) 
         {
             foreach ( GrabbedVertice gv in _grabbedVertices) 
             {
-                Vector3 nV = rightHandObj.transform.position - gv.Offset; // + or -??
+                Vector3 nV; 
+                if (gv._isLeftHand)
+                {
+                    nV = leftHandObj.Transform.position - gv.Offset;
+                }
+                else
+                {
+                    nV = rightHandObj.Transform.position - gv.Offset;
+
+                }
+                //Vector3 nV = rightHandObj.Transform.position - gv.Offset; // + or -??
                 vertices[gv.VerticesIndex] = transform.InverseTransformPoint(nV); 
             }
             mesh.vertices = vertices;
@@ -365,17 +425,7 @@ public class ModifMesh : MonoBehaviour
         Debug.Log("reassign called");
     }
 
-    public static List<byte> AddBytesToList(List<byte> list, byte[] bytes)
-    {
-        foreach (byte b in bytes) { list.Add(b); }
-        return list;
-    }
-    public static byte[] ListToByteArray(List<byte> list)
-    {
-        byte[] result = new byte[list.Count];
-        for (int i = 0; i < list.Count; i++) { result[i] = list[i]; }
-        return result;
-    }
+  
 
 
 

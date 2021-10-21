@@ -6,25 +6,30 @@ using Photon.Realtime;
 using System;
 using System.IO;
 using System.Linq;
-
+using System.Security.Cryptography;
 public class DataReceiver : MonoBehaviour
 {
-
+   
     public bool _isMine = false;
-    public string _nickname = "Gael";
+    public string _nickname;
     /* just for a local servor test */
-    public bool _imaServer = false;
-
+    public bool _imaMaster = false;
     public string separator_token = "/";
 
+    public static byte[] _servKey = new byte[1]
+    {
+        0
+    };
     // Start is called before the first frame update
     void Start()
     {
-        if (Application.persistentDataPath == @"C:/Users/gaelg/AppData/LocalLow/DefaultCompany/Cyber_Cave")
-        {
-            _imaServer = true;
-        }
-        // _imaserver will be true ... separator token has to be change if on windows ... 
+        /*
+        if (File.Exists(Application.persistentDataPath + separator_token + "master.prk"))
+            _imaMaster = true;
+    
+        */
+
+            // _imaserver will be true ... separator token has to be change if on windows ... 
         if (GetComponent<PhotonView>().IsMine)
         {
             _isMine = true;
@@ -32,10 +37,11 @@ public class DataReceiver : MonoBehaviour
         }
         if (_isMine)
         {
-            if (!_imaServer)
+            if (!_imaMaster)
             {
-                //GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "asking update ";
-                Invoke("UpdateCheck", 3f); // just waiting ...
+                Invoke("UpdateCheck", 3f); // Invoke Update
+                // will not need it here 
+               // Invoke("Auth", 3f); // Invoke Update
             }
             else
             {
@@ -59,6 +65,141 @@ public class DataReceiver : MonoBehaviour
         }
     }
 
+    void Auth() 
+    {
+        int authid = -1;
+        // [0]  search .ini 
+        if ( File.Exists(Application.persistentDataPath + separator_token + "chrauth"))
+        {
+            authid = BitConverter.ToInt32(File.ReadAllBytes(Application.persistentDataPath + separator_token + "chrauth"), 4);
+        }
+        // [1]  search .puk file & .prk file
+        string[] pukpath = Directory.GetFiles(Application.persistentDataPath, "*.puk", SearchOption.AllDirectories);
+        string[] prkpath = Directory.GetFiles(Application.persistentDataPath, "*.prk", SearchOption.AllDirectories);
+        
+        if (pukpath.Length == 0 || prkpath.Length == 0)
+        {
+            GenerateNewPairKey();
+            pukpath = Directory.GetFiles(Application.persistentDataPath, "*.puk", SearchOption.AllDirectories);
+            prkpath = Directory.GetFiles(Application.persistentDataPath, "*.prk", SearchOption.AllDirectories);
+        }
+
+        byte[] puk = File.ReadAllBytes(pukpath[0]);
+        byte[] prk = File.ReadAllBytes(prkpath[0]);
+
+        // [2] Now build msg 4 server 
+
+        List<byte> msg = new List<byte>();
+        msg.Add(7); // first byte is flag : auth 
+
+        byte[] tsbytes = BitConverter.GetBytes(Utils.GetTimeStamp());
+        Utils.AddBytesToList(ref msg, tsbytes);
+        Utils.AddBytesToList(ref msg, SignData(prk));
+        if (authid == -1)
+        {
+            Utils.AddBytesToList(ref msg, puk);
+        }
+        else
+        {
+            Utils.AddBytesToList(ref msg, BitConverter.GetBytes(authid));
+        }
+
+        SendData(msg.ToArray()); 
+    }
+
+
+    // the function for the server to verify authentification
+
+    void VerifyAuth(byte[] msg, PhotonMessageInfo info)
+    {
+        if (!_imaMaster)
+            return;
+        // [0] Verify if auth id is mentionned or not by defining data length
+        // pu key is 532 bytes . sign is 512 bytes. 
+        if (msg.Length < 516)
+            return ;
+
+        byte[] auth_msg = new byte[516];
+        for (int i = 0; i < 516; i++)
+            auth_msg[i] = msg[i + 1];
+
+        int auth_id = -1;
+        List<byte> data = new List<byte>();
+
+        if ( msg.Length == 1048) 
+        {
+            // new account needed 
+            byte[] puk = new byte[532];
+            for (int i = 517; i < msg.Length; i++)
+                puk[i - 517] = msg[i];
+
+            if ( !VerifyAuthSignature(auth_msg, puk))
+            {
+                return;
+            }
+            // register the account 
+            if (!Directory.Exists(Application.persistentDataPath + separator_token + "acc"))
+            {
+                Directory.CreateDirectory(Application.persistentDataPath + separator_token + "acc");
+            }
+            // it will be equal to number 
+            string[] pukpath = Directory.GetFiles(Application.persistentDataPath + separator_token + "acc", "*.k", SearchOption.AllDirectories);
+             auth_id = pukpath.Length;
+            File.WriteAllBytes(Application.persistentDataPath + separator_token + "acc" + separator_token + auth_id.ToString() + ".k", puk);
+
+            // send back auth id to the guy. ( byte flag 9 )
+            data = new List<byte>();
+            data.Add(9);
+            Utils.AddBytesToList(ref data, BitConverter.GetBytes(auth_id));
+            GetComponent<PhotonView>().RPC("ReceiveData", info.Sender, data.ToArray());
+
+        }
+        else if (msg.Length == 521)
+        {
+            byte[] puk = null;
+             auth_id = BitConverter.ToInt32(msg, 517);
+            if ( !File.Exists(Application.persistentDataPath + separator_token + "acc" + separator_token + auth_id.ToString() + ".k"))
+            {
+                return;
+            }
+            else
+            {
+                puk = File.ReadAllBytes(Application.persistentDataPath + separator_token + "acc" + separator_token + auth_id.ToString() + ".k");
+            }
+            if ( puk.Length != 532 || puk == null)
+            {
+                return;
+            }
+            if (!VerifyAuthSignature(auth_msg, puk))
+            {
+                return;
+            }
+        }
+        else
+        {
+            return;
+        }
+
+        data = new List<byte>();
+        // >>>>>>>>>>>>>>> Send to this specific client his auth _ id 
+        GameObject mask = Instantiate(Resources.Load(auth_id.ToString(), typeof(GameObject))) as GameObject;
+        if (!mask)
+            return;
+
+        // send to all people
+
+        data.Add(8);
+        Utils.AddBytesToList(ref data, BitConverter.GetBytes(auth_id));
+        Utils.AddBytesToList(ref data, BitConverter.GetBytes(info.Sender.UserId.Length));
+        foreach ( char c in info.Sender.UserId.ToCharArray())
+        {
+            data.Add((byte) c);
+        }
+
+        // we are the server we 
+        SendData(data.ToArray());
+    }
+
     void UpdateCheck()
     {
 
@@ -79,7 +220,7 @@ public class DataReceiver : MonoBehaviour
             string s = f.FullName;
             UpdateWorld(s); // :-)
 
-            uint cts = BitConverter.ToUInt32(ReadBytesInFiles(s, 0, 4), 0);
+            uint cts = BitConverter.ToUInt32(Utils.ReadBytesInFiles(s, 0, 4), 0);
             if (cts > lastts)
             {
                 lastts = cts;
@@ -88,8 +229,8 @@ public class DataReceiver : MonoBehaviour
         // send the message // header is 4 
         List<byte> msg = new List<byte>();
         msg.Add(4);
-        msg = AddBytesToList(msg, BitConverter.GetBytes(lastts));
-        SendData(ListToByteArray(msg));
+        Utils.AddBytesToList(ref msg, BitConverter.GetBytes(lastts));
+        SendData(msg.ToArray());
     }
     void OnPhotonInstantiate(PhotonMessageInfo info)
     {
@@ -258,7 +399,7 @@ public class DataReceiver : MonoBehaviour
         }
         else
         {
-           // GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "no rigidbody";
+
         }
 
     }
@@ -281,7 +422,7 @@ public class DataReceiver : MonoBehaviour
 
          */
         // only for the server :) 
-        if (!_imaServer)
+        if (!_imaMaster)
             return;
 
         Debug.Log("Starting update for client demand ... ");
@@ -306,7 +447,7 @@ public class DataReceiver : MonoBehaviour
         foreach (string s in files)
         {
             // just read in first bytes ( block save first bytes will be timestamp, next series of network message rougly write to bytes ) 
-            uint cts = BitConverter.ToUInt32(ReadBytesInFiles(s, 0, 4), 0);
+            uint cts = BitConverter.ToUInt32(Utils.ReadBytesInFiles(s, 0, 4), 0);
             if (cts > clientlastts)
             {
                 fNeeded.Add(s); //  adding files to send ... :) 
@@ -319,17 +460,17 @@ public class DataReceiver : MonoBehaviour
         {
             Debug.Log("starting creating new block save file...");
             List<byte> blockdata = new List<byte>();
-            uint cts = GetTimeStamp();
+            uint cts = Utils.GetTimeStamp();
             // we load and rewrite every byte roughly to ram ... some sytem of regulation will be needed in receivedata to avoid ram overflow
-            blockdata = AddBytesToList(blockdata, BitConverter.GetBytes(cts));
+            Utils.AddBytesToList(ref blockdata, BitConverter.GetBytes(cts));
             foreach (byte[] dts in unprocessed_msg)
             {
                 // add the length of msg bytes ??? // should never going more than 256 ??? i guess ????
                 blockdata.Add((byte)dts.Length); // should never go more than 255 length ... 
-                blockdata = AddBytesToList(blockdata, dts);
+                Utils.AddBytesToList(ref blockdata, dts);
             }
             string npath = Application.persistentDataPath + separator_token + "save" + separator_token + cts.ToString();
-            File.WriteAllBytes(npath, ListToByteArray(blockdata));
+            File.WriteAllBytes(npath, blockdata.ToArray());
             // we could do some lpz compression like in sc4 save for more efficiency 
             fNeeded.Add(npath);
             Debug.Log("clearing unprocessed _message");
@@ -369,23 +510,23 @@ public class DataReceiver : MonoBehaviour
                 bool needbreak = false;
                 List<byte> lcformat = new List<byte>();
                 lcformat.Add(6); // header 
-                lcformat = AddBytesToList(lcformat, ReadBytesInFiles(s, 0, 4));  // timestamp 
-                lcformat = AddBytesToList(lcformat, BitConverter.GetBytes(filecounter)); // files offset list
-                lcformat = AddBytesToList(lcformat, BitConverter.GetBytes((uint)fNeeded.Count)); // files length
-                lcformat = AddBytesToList(lcformat, BitConverter.GetBytes(byteOffset)); // offset 8 o
-                lcformat = AddBytesToList(lcformat, BitConverter.GetBytes(flength));  //  length  8 o
+                Utils.AddBytesToList(ref lcformat, Utils.ReadBytesInFiles(s, 0, 4));  // timestamp 
+                Utils.AddBytesToList(ref lcformat, BitConverter.GetBytes(filecounter)); // files offset list
+                Utils.AddBytesToList(ref lcformat, BitConverter.GetBytes((uint)fNeeded.Count)); // files length
+                Utils.AddBytesToList(ref lcformat, BitConverter.GetBytes(byteOffset)); // offset 8 o
+                Utils.AddBytesToList(ref lcformat, BitConverter.GetBytes(flength));  //  length  8 o
                 if (byteOffset + 64000 < flength)
                 {
-                    lcformat = AddBytesToList(lcformat, ReadBytesInFiles(s, byteOffset, 64000));
+                    Utils.AddBytesToList(ref lcformat, Utils.ReadBytesInFiles(s, byteOffset, 64000));
                 }
                 else
                 {
                     long b2r = flength - byteOffset;
-                    lcformat = AddBytesToList(lcformat, ReadBytesInFiles(s, byteOffset, (int)b2r));
+                    Utils.AddBytesToList(ref lcformat, Utils.ReadBytesInFiles(s, byteOffset, (int)b2r));
                     needbreak = true;
                 }
                 // send back the packed data to the client
-                GetComponent<PhotonView>().RPC("ReceiveData", info.Sender, ListToByteArray(lcformat)); // its probably an ECHO ok need to check ...
+                GetComponent<PhotonView>().RPC("ReceiveData", info.Sender, lcformat.ToArray()); // its probably an ECHO ok need to check ...
                 Debug.Log("[update progress] Sending file " + filecounter + "/" + fNeeded.Count + " : " + byteOffset + "/" + flength + " bytes ...");
                 if (needbreak) { break; }
                 byteOffset += 64000;
@@ -411,7 +552,7 @@ public class DataReceiver : MonoBehaviour
          -> packeddata chunk  ( ?? o )
         */
         // download and construct block save file 
-        if (_imaServer) // si je suis le serveur retourner
+        if (_imaMaster) // si je suis le serveur retourner
             return;
 
         string savepath = Application.persistentDataPath + separator_token + "save";
@@ -440,11 +581,11 @@ public class DataReceiver : MonoBehaviour
         }
         // i need to find a way to to reconstruct the file if its not received in order (by splitting i guess) 
         // il should also need to know if the checksum of file is correct to know it is right order
-        AppendBytesToFile(nfpath, blockdata);
+        Utils.AppendBytesToFile(nfpath, blockdata);
 
         if (pc + blockdata.Length >= pl && fc == fl - 1) // fl - 1 ???
         {
-            //GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "update received !";
+       
             foreach (string s in Unprocessed_Savefiles)
             {
                 UpdateWorld(s);
@@ -460,50 +601,48 @@ public class DataReceiver : MonoBehaviour
         long fileLength = new FileInfo(filePath).Length;
         while (byteOffset < fileLength)
         {
-            byte messagelength = ReadBytesInFiles(filePath, byteOffset, 1)[0];
-            byte[] msg = ReadBytesInFiles(filePath, byteOffset + 1, messagelength);
+            byte messagelength = Utils.ReadBytesInFiles(filePath, byteOffset, 1)[0];
+            byte[] msg = Utils.ReadBytesInFiles(filePath, byteOffset + 1, messagelength);
             ReceiveData(msg, new PhotonMessageInfo()); // seems ok to me ???
             byteOffset += messagelength + 1; // adding the byte to byte Offset
-            //GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = "updating world !";
+   
         }
-        //GameObject.Find("DEBUGGUI").GetComponent<UnityEngine.UI.Text>().text = fileLength.ToString();
-    }
-    public static List<byte> AddBytesToList(List<byte> list, byte[] bytes)
-    {
-        foreach (byte b in bytes) { list.Add(b); }
-        return list;
-    }
-    public static byte[] ListToByteArray(List<byte> list)
-    {
-        byte[] result = new byte[list.Count];
-        for (int i = 0; i < list.Count; i++) { result[i] = list[i]; }
-        return result;
-    }
 
-    public uint GetTimeStamp()
-    {
-        return (uint)(DateTime.UtcNow.Subtract(new DateTime(2020, 1, 1))).TotalSeconds;
     }
-    public static void AppendBytesToFile(string _filePath, byte[] bytes)
-    {
+   
 
-        using (FileStream f = new FileStream(_filePath, FileMode.Append))
+    public static void  Metamorph ( byte[] data)
+    {
+        // data.Add(8);
+        /*
+        data = AddBytesToList(data, BitConverter.GetBytes(auth_id));
+        data = AddBytesToList(data, BitConverter.GetBytes(info.Sender.UserId.Length));
+        foreach (char c in info.Sender.UserId.ToCharArray())
         {
-            f.Write(bytes, 0, bytes.Length);
+            data.Add((byte)c);
+        }*/
+
+        int auth_id = BitConverter.ToInt32(data, 1);
+        int uidl = BitConverter.ToInt32(data, 5);
+        char[] UserIdn = new char[uidl];
+
+        for (int i = 9;  i< 9+uidl ; i++  ) 
+        {
+            UserIdn[i - 9] = (char)data[i];
         }
 
-    }
-    public static byte[] ReadBytesInFiles(string _filePath, long offset, int length)
-    {
-        byte[] result = new byte[length];
-        using (Stream stream = File.Open(_filePath, FileMode.Open))
+        string useridstr = new string(UserIdn);
+        // now get all avatar. get all photonview. Then Permute mask or add Mask.
+
+        GameObject[] allavs = GameObject.FindGameObjectsWithTag("Avatar");
+        foreach ( GameObject go in allavs)
         {
-            //stream.Position = offset;
-            stream.Seek(offset, SeekOrigin.Begin); // probably better ???
-            //stream.Write(bytes, 0, bytes.Length);
-            stream.Read(result, 0, length);
+            if (go.GetComponent<PhotonView>())
+            {
+               // go.GetComponent<PhotonView>()
+            }
         }
-        return result;
+
     }
 
     [PunRPC]
@@ -520,7 +659,8 @@ public class DataReceiver : MonoBehaviour
         byte header = data[0];
         // header 0 is call from clien tog get update 
 
-        if (_imaServer && header != 4) // header 4 will be a client calling for update, so dont add it to unprocess msg
+        if (_imaMaster && header != 4  
+            && header != 7 && header !=  8 && header != 9) // need better way to filter the thing
         {
             unprocessed_msg.Add(data);
             Debug.Log("adding unproc_msg #" + unprocessed_msg.Count);
@@ -534,11 +674,101 @@ public class DataReceiver : MonoBehaviour
             case 4: ProcessUpdateDemand(data, info); break;
             case 5: UpdateMeshCut(data); Debug.Log("cutting mesh"); break; // cut meshes
             case 6: UpdateWorldSave(data); break;
+
+            case 7: VerifyAuth(data, info); break; // verify authentification ( server only ) 
+            case 8: break; // Metamorph function
+            case 9: break; // Update ini file ( get AUTH ID ) 
         }
     }
 
     // process data for gameobject 
 
+
+    public  void GenerateNewPairKey() // better to use offline & on another device. 
+    {
+        if (File.Exists(Application.persistentDataPath + separator_token + "privateKey") || File.Exists(Application.persistentDataPath + separator_token + "publicKey"))
+        {
+            Debug.Log("Already existing RSA key files has been found in app folder. Please move them or rename them. RSA Key Gen has been aborted");
+            return;
+        }
+        RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(4096);
+        byte[] _privateKey = rsa.ExportCspBlob(true);
+        byte[] _publicKey = rsa.ExportCspBlob(false);
+        File.WriteAllBytes(Application.persistentDataPath + separator_token + "key.prk", rsa.ExportCspBlob(true));
+        File.WriteAllBytes(Application.persistentDataPath + separator_token + "key.puk", rsa.ExportCspBlob(false));
+        rsa.Clear();
+        Debug.Log("RSA DONE.");
+
+    }
+
+    public static byte[] SignData(byte[] prkey) 
+    {
+        RSACryptoServiceProvider _MyPrRsa = new RSACryptoServiceProvider();
+
+        try 
+        {
+            _MyPrRsa.ImportCspBlob(prkey);
+            byte[] UnsignedData = BitConverter.GetBytes(Utils.GetTimeStamp());
+            SHA256 sha = SHA256.Create();
+            UnsignedData = sha.ComputeHash(UnsignedData);
+            byte[] Signature = _MyPrRsa.SignHash(UnsignedData, CryptoConfig.MapNameToOID("SHA256"));
+            _MyPrRsa.Clear();
+            return Signature;
+        }
+        catch ( Exception e) 
+        {
+            _MyPrRsa.Clear();
+            return null;
+        }
+
+
+    }
+
+    public static bool VerifyAuthSignature(byte[] data, byte[] pukey)
+    {
+
+        // first 4 bytes is number of second since 2020 unix epoch 
+        // next 512 bytes is signature of this number of day 
+        if (data.Length != 516)
+            return false;
+
+        byte[] msg = new byte[4];
+
+        for (int i = 0; i < 4; i++)
+            msg[i] = data[i];
+
+        byte[] sign = new byte[512];
+
+        for (int i = 0; i < 512; i++)
+            sign[i] = data[i + 4];
+
+        RSACryptoServiceProvider _MyPuRsa = new RSACryptoServiceProvider();
+        try
+        {
+            _MyPuRsa.ImportCspBlob(pukey);
+            bool success = _MyPuRsa.VerifyData(msg, CryptoConfig.MapNameToOID("SHA256"), sign);
+            if (success)
+            {
+                _MyPuRsa.Clear();
+                return true;
+            }
+            else
+            {
+                _MyPuRsa.Clear();
+                return false;
+            }
+
+
+        }
+        catch (CryptographicException e)
+        {
+            Debug.Log(e.Message);
+            _MyPuRsa.Clear();
+            return false;
+        }
+
+     
+    }
 
 
 

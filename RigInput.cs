@@ -8,8 +8,14 @@ using System.Text;
 public class RigInput : MonoBehaviour
 {
     /*
-     Anchors structure : 
-      head, left hand, left fingers, right hand, right fingers
+     TODO : 
+     
+    * FINGER Undo transform When Tracked is not done 
+    * Send Finger INFO always ( when not tracked ) for updating
+    * Left Hand Grabbing
+    * Better Pose Detector
+
+
      
      */
     public GameObject head;
@@ -23,7 +29,43 @@ public class RigInput : MonoBehaviour
         head = GameObject.Find("CenterEyeAnchor");
         lefthand = GameObject.Find("OVRlefthand");
         righthand = GameObject.Find("OVRrighthand");
+        if (GetComponent<HandShortKey>())
+        {
+            GetComponent<HandShortKey>().INITME(lefthand, righthand, head);
+            Invoke("CreateOriginPose", 15f);
+            InvokeRepeating("CompareCandidate", 20f, 1f);
+        }
+
         InvokeRepeating("GetMyAnchors", 2, 2f);
+        InvokeRepeating("DetectPose", 1, 0.5f);
+    }
+
+    HandShortKey.HandsState originpose;
+    public void CreateOriginPose()
+    {
+        byte[] bin = null;
+        originpose = GetComponent<HandShortKey>().GetHandsState(ref bin);
+        Utils.PrintInfo("ORIGIN POS DONE");
+    }
+    public void CompareCandidate()
+    {
+        byte[] bin = null;
+        HandShortKey.HandsState currentpos = GetComponent<HandShortKey>().GetHandsState(ref bin);
+
+        float compareresult = GetComponent<HandShortKey>().CompareHandStates(originpose, currentpos,
+            0f, 0f, 0f, 1f, 1f);
+        compareresult = Math.Abs(compareresult * 100);
+        string s = "";
+        if (compareresult < 10f)
+        {
+            s = "(°_°)";
+        }
+        else
+        {
+            s = "(-_-)";
+        }
+        s += "\r\n" + compareresult.ToString();
+        Utils.PrintInfo(s);
     }
 
 
@@ -128,6 +170,7 @@ public class RigInput : MonoBehaviour
                     if ( g == null)
                     {
                         mAnchors = new List<GameObject>();
+                        
                         Debug.Log("My avatar failed:"+ ctr + "# not found");
                         return;
                     }
@@ -145,17 +188,40 @@ public class RigInput : MonoBehaviour
     }
     private void UpdateAnchors() // update all anchors objects
     {
-        // 34 anchor to update
-        if (!_AvatarFound || !righthand.GetComponent<OVRHand>().IsTracked || !lefthand.GetComponent<OVRHand>().IsTracked)
-            return; // return if not required
+        // we really need to keep offset here 
+        if (!_AvatarFound)
+            return;
+
+        // update head
+        mAnchors[0].transform.rotation = head.transform.rotation; // should be the head transform rotation but will do issue with bodyanimation
+        mAnchors[0].transform.position = head.transform.position;
 
 
+        mAnchors[1].transform.rotation = righthand.GetComponent<OVRSkeleton>().Bones[0].Transform.rotation;
+        mAnchors[1].transform.position = righthand.GetComponent<OVRSkeleton>().Bones[0].Transform.position;
+        mAnchors[18].transform.rotation = lefthand.GetComponent<OVRSkeleton>().Bones[0].Transform.rotation;
+        mAnchors[18].transform.position = lefthand.GetComponent<OVRSkeleton>().Bones[0].Transform.position;
+
+        /*
+        if (righthand.GetComponent<OVRHand>().IsTracked)
+        {
+            mAnchors[1].transform.rotation = righthand.GetComponent<OVRSkeleton>().Bones[0].Transform.rotation;
+            mAnchors[1].transform.position = righthand.GetComponent<OVRSkeleton>().Bones[0].Transform.position;
+        }
+
+        if (lefthand.GetComponent<OVRHand>().IsTracked)
+        {
+            mAnchors[18].transform.rotation = lefthand.GetComponent<OVRSkeleton>().Bones[0].Transform.rotation;
+            mAnchors[18].transform.position = lefthand.GetComponent<OVRSkeleton>().Bones[0].Transform.position;
+        }
+        */
+        // there should some weird stuff here ... 
         for (int i = 0; i < 34; i++)
         {
             switch (i)
             {
                 case 0:
-                    mAnchors[i].transform.rotation = head.transform.rotation;
+                    mAnchors[i].transform.rotation = this.transform.rotation;
                     mAnchors[i].transform.position = head.transform.position;
                     break; // the head ...
                 case 1:
@@ -368,6 +434,9 @@ public class RigInput : MonoBehaviour
     {
         GameObject inst = GameObject.CreatePrimitive(PrimitiveType.Cube);
         inst.transform.position = Camera.main.transform.position;
+        Vector3 nv = inst.transform.position + (Camera.main.transform.forward * Time.deltaTime * 40f);
+        inst.transform.position = new Vector3(nv.x, transform.position.y, nv.z);
+
         inst.transform.localScale = new Vector3(0.2f, 0.2f, 0.2f);
         inst.AddComponent<ModifMesh>();
         inst.GetComponent<ModifMesh>().ForceStart();
@@ -377,16 +446,16 @@ public class RigInput : MonoBehaviour
         }
         //inst.GetComponent<Rigidbody>().isKinematic = false;
         inst.tag = "3DMESH";
-        inst.name = GetUniqueName();
+        inst.name = Utils.GetUniqueName();
         // this new one has to get a unique name // but we also need to name 
 
 
         // send to server 
         List<byte> data = new List<byte>();
         data.Add(3);
-        data = AddBytesToList(data, BitConverter.GetBytes(inst.transform.position.x));
-        data = AddBytesToList(data, BitConverter.GetBytes(inst.transform.position.y));
-        data = AddBytesToList(data, BitConverter.GetBytes(inst.transform.position.z));
+        Utils.AddBytesToList(ref data, BitConverter.GetBytes(inst.transform.position.x));
+        Utils.AddBytesToList(ref data, BitConverter.GetBytes(inst.transform.position.y));
+        Utils.AddBytesToList(ref data, BitConverter.GetBytes(inst.transform.position.z));
         foreach (char c in inst.name.ToCharArray())  // always 64 bytes
         {
             data.Add((byte)c);
@@ -398,7 +467,7 @@ public class RigInput : MonoBehaviour
         {
             if (go.GetComponent<DataReceiver>()._isMine)
             {
-                go.GetComponent<DataReceiver>().SendData(ListToByteArray(data));
+                go.GetComponent<DataReceiver>().SendData(data.ToArray());
                 break;
             }
         }
@@ -430,7 +499,7 @@ public class RigInput : MonoBehaviour
                     }
 
                     pieces[0].name = ancient_name;
-                    pieces[1].name = GetUniqueName();
+                    pieces[1].name = Utils.GetUniqueName();
                     // next set a name for those go .. piece 0 will be ancient name , piece 1 will be a new hash name 
 
                     List<byte> data = new List<byte>();
@@ -440,12 +509,12 @@ public class RigInput : MonoBehaviour
                     {
                         data.Add((byte)ancient_name.ToCharArray()[i]);
                     }
-                    data = AddBytesToList(data, BitConverter.GetBytes(righthand.transform.position.x));
-                    data = AddBytesToList(data, BitConverter.GetBytes(righthand.transform.position.y));
-                    data = AddBytesToList(data, BitConverter.GetBytes(righthand.transform.position.z));
-                    data = AddBytesToList(data, BitConverter.GetBytes(righthand.transform.right.x));
-                    data = AddBytesToList(data, BitConverter.GetBytes(righthand.transform.right.y));
-                    data = AddBytesToList(data, BitConverter.GetBytes(righthand.transform.right.z));
+                    Utils.AddBytesToList(ref data, BitConverter.GetBytes(righthand.transform.position.x));
+                    Utils.AddBytesToList(ref data, BitConverter.GetBytes(righthand.transform.position.y));
+                    Utils.AddBytesToList(ref data, BitConverter.GetBytes(righthand.transform.position.z));
+                    Utils.AddBytesToList(ref data, BitConverter.GetBytes(righthand.transform.right.x));
+                    Utils.AddBytesToList(ref data, BitConverter.GetBytes(righthand.transform.right.y));
+                    Utils.AddBytesToList(ref data, BitConverter.GetBytes(righthand.transform.right.z));
                     foreach (char c in pieces[1].name.ToCharArray())
                     {
                         data.Add((byte)c);
@@ -457,7 +526,7 @@ public class RigInput : MonoBehaviour
                     {
                         if (go.GetComponent<DataReceiver>()._isMine)
                         {
-                            go.GetComponent<DataReceiver>().SendData(ListToByteArray(data));
+                            go.GetComponent<DataReceiver>().SendData(data.ToArray());
                             return;
                         }
                     }
@@ -485,37 +554,65 @@ public class RigInput : MonoBehaviour
         }
         //canCut = false;
     }
-    bool _grabbing = false;
-    void StartGrabbingVertices()
+    bool _grabbingLeft = false;
+    bool _grabbingRight = false;
+    void StartGrabbingVertices(bool _isLeftHand)
     {
-        if (!_grabbing)
+        bool cond;
+        if (_isLeftHand)
+            cond = _grabbingLeft;
+        else
         {
-            _grabbing = true;
+            cond = _grabbingRight;
+        }
+
+        if (!cond)
+        {
+            if (_isLeftHand)
+                _grabbingLeft = true;
+            else
+            {
+                _grabbingRight = true;
+            }
+
             // get vertices point near heand // get all gameobject tag 3DMesh
             GameObject[] smeshes = GameObject.FindGameObjectsWithTag("3DMESH");
             foreach (GameObject go in smeshes)
             {
                 if (go.GetComponent<ModifMesh>() != null)
                 {
-                    StartCoroutine(go.GetComponent<ModifMesh>().GetVerticesNearHand());
+                    StartCoroutine(go.GetComponent<ModifMesh>().GetVerticesNearHand(_isLeftHand));
 
                 }
             }
         }
     }
 
-    void StopGrabbingVertices()
+    void StopGrabbingVertices(bool _isLeftHand)
     {
-        if (_grabbing)
+        bool cond;
+        if (_isLeftHand)
+            cond = _grabbingLeft;
+        else
         {
-            _grabbing = false;
+            cond = _grabbingRight;
+        }
+
+        if (cond)
+        {
+            if (_isLeftHand)
+                _grabbingLeft = false;
+            else
+            {
+                _grabbingRight = false;
+            }
             // cancel all update
             GameObject[] smeshes = GameObject.FindGameObjectsWithTag("3DMESH");
             foreach (GameObject go in smeshes)
             {
                 if (go.GetComponent<ModifMesh>() != null)
                 {
-                    go.GetComponent<ModifMesh>().StopGrabbingVertices();
+                    go.GetComponent<ModifMesh>().StopGrabbingVertices(_isLeftHand);
 
                 }
             }
@@ -574,8 +671,127 @@ public class RigInput : MonoBehaviour
 
 
     // the loop
+
+    void StartRecordGesture()
+    {
+        this.GetComponent<HandGestureR>().CreatePose(righthand, 1);
+    }
+    GameObject dbgtext;
+
+    void DetectPose()
+    {
+        /*
+        if (!_AvatarFound || !righthand.GetComponent<OVRHand>().IsTracked || !lefthand.GetComponent<OVRHand>().IsTracked)
+            return;
+
+        float min_dist = 0.125f;
+        if (GetDistanceMetaCarpal(righthand.GetComponent<OVRSkeleton>().Bones[11]) <= min_dist
+            && GetDistanceMetaCarpal(righthand.GetComponent<OVRSkeleton>().Bones[8]) <= min_dist
+            && GetDistanceMetaCarpal(righthand.GetComponent<OVRSkeleton>().Bones[14]) <= min_dist
+            && GetDistanceMetaCarpal(righthand.GetComponent<OVRSkeleton>().Bones[18]) <= min_dist
+            )
+            StartGrabbingVertices(false);
+        else
+            StopGrabbingVertices(false); // 
+        */
+   
+          
+        if (!_AvatarFound)
+            return;
+
+        float min_dist = 0.125f;
+        if (GetDistanceMetaCarpal(righthand.GetComponent<OVRSkeleton>().Bones[11]) <= min_dist
+          && GetDistanceMetaCarpal(righthand.GetComponent<OVRSkeleton>().Bones[8]) > 0.13f
+          && GetDistanceMetaCarpal(righthand.GetComponent<OVRSkeleton>().Bones[14]) <= min_dist
+          && GetDistanceMetaCarpal(righthand.GetComponent<OVRSkeleton>().Bones[18]) > 0.12f
+          )
+        {
+            SpawnPrimitive();
+
+        }
+        // start detecting righthand stuff 
+        // error stopgrabbing vertices dont 
+        if (righthand.GetComponent<OVRHand>().IsTracked)
+        {
+            if (GetDistanceFromFingers(righthand.GetComponent<OVRSkeleton>().Bones[11], righthand.GetComponent<OVRSkeleton>().Bones[0]) <= min_dist
+            && GetDistanceFromFingers(righthand.GetComponent<OVRSkeleton>().Bones[8], righthand.GetComponent<OVRSkeleton>().Bones[0]) <= min_dist
+            && GetDistanceFromFingers(righthand.GetComponent<OVRSkeleton>().Bones[14], righthand.GetComponent<OVRSkeleton>().Bones[0]) <= min_dist
+            && GetDistanceFromFingers(righthand.GetComponent<OVRSkeleton>().Bones[18], righthand.GetComponent<OVRSkeleton>().Bones[0]) <= min_dist
+            )
+                StartGrabbingVertices(false);
+            else
+                StopGrabbingVertices(false); // 
+        }
+
+        if (lefthand.GetComponent<OVRHand>().IsTracked)
+        {
+           
+            if (GetDistanceFromFingers(lefthand.GetComponent<OVRSkeleton>().Bones[11], lefthand.GetComponent<OVRSkeleton>().Bones[0]) <= min_dist
+            && GetDistanceFromFingers(lefthand.GetComponent<OVRSkeleton>().Bones[8], lefthand.GetComponent<OVRSkeleton>().Bones[0]) <= min_dist
+            && GetDistanceFromFingers(lefthand.GetComponent<OVRSkeleton>().Bones[14], lefthand.GetComponent<OVRSkeleton>().Bones[0]) <= min_dist
+            && GetDistanceFromFingers(lefthand.GetComponent<OVRSkeleton>().Bones[18], lefthand.GetComponent<OVRSkeleton>().Bones[0]) <= min_dist
+            )
+                StartGrabbingVertices(true);
+            else
+                StopGrabbingVertices(true); // 
+        }
+        if (lefthand.GetComponent<OVRHand>().IsTracked && righthand.GetComponent<OVRHand>().IsTracked)
+        {
+
+        }
+    
+    }
+
+    float GetDistanceFromFingers(OVRBone fingerA, OVRBone fingerB)
+    {
+        float dist = Vector3.Distance(fingerA.Transform.position, fingerB.Transform.position);
+        dist = Mathf.Abs(dist);
+        return dist;
+    }
+
+    float GetDistanceMetaCarpal(OVRBone finger)
+    {
+        float dist = Vector3.Distance(righthand.GetComponent<OVRSkeleton>().Bones[0].Transform.position, finger.Transform.position);
+        dist = Mathf.Abs(dist);
+        return dist;
+    }
+
+
+
+
+  //  bool _rpose = false;
     void Update()
     {
+        //---------------------------------------- [old]
+        Vector2 primaryAxis = OVRInput.Get(OVRInput.Axis2D.SecondaryThumbstick);
+       
+        /*
+        if (OVRInput.Get(OVRInput.RawButton.A) && !_rpose)
+        {
+            _rpose = true;
+            Invoke("StartRecordGesture", 10f);
+
+        }
+        */
+        if (primaryAxis.y > 0f )
+        {
+            Move_XZ(true);
+        }
+        if (primaryAxis.y < 0f)
+        {
+            Move_XZ(false);
+        }
+        if (primaryAxis.x > 0f)
+        {
+            // rotate y
+            this.transform.Rotate(0, (primaryAxis.x * 5), 0); // ok ?
+        }
+        if (primaryAxis.x < 0f)
+        {
+            // rotate y
+            this.transform.Rotate(0, (primaryAxis.x * 5), 0); // ok?
+        }
+        //----------------------------------------
         // [0] update Anchors 
         UpdateAnchors();
         // [1] Get Gestures ID for both hand.
@@ -585,40 +801,8 @@ public class RigInput : MonoBehaviour
     }
 
     // Misc
-    public string GetUniqueName()
-    {
-        double ts = (double)(DateTime.UtcNow.Subtract(new DateTime(2020, 1, 1))).TotalMilliseconds;
-        string hashname = SHAToHex(ComputeSHA(BitConverter.GetBytes(ts)), false);
-        return hashname;
-        // hashame will always be equal to 
-    }
-    public byte[] ComputeSHA(byte[] msg)
-    {
+   
 
-        SHA256 sha = SHA256.Create();
-        byte[] result = sha.ComputeHash(msg);
-        return result;
-    }
-    public string SHAToHex(byte[] bytes, bool upperCase)
-    {
-        StringBuilder result = new StringBuilder(bytes.Length * 2);
 
-        for (int i = 0; i < bytes.Length; i++)
-            result.Append(bytes[i].ToString(upperCase ? "X2" : "x2"));
-
-        return result.ToString();
-    }
-
-    public static List<byte> AddBytesToList(List<byte> list, byte[] bytes)
-    {
-        foreach (byte b in bytes) { list.Add(b); }
-        return list;
-    }
-    public static byte[] ListToByteArray(List<byte> list)
-    {
-        byte[] result = new byte[list.Count];
-        for (int i = 0; i < list.Count; i++) { result[i] = list[i]; }
-        return result;
-    }
 
 }
