@@ -472,6 +472,8 @@ public class P2SHARE : MonoBehaviour
         {
             chksm[i] = data[i + 2];
         }
+        if (GetULByChecksum(ref chksm) != null)
+            return;
         string fpath = GetDirByType(data[1]);
         fpath += Utils.SHAToHex(chksm, false);
         if (!File.Exists(fpath))
