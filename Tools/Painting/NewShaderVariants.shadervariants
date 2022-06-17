@@ -1,0 +1,249 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!200 &20000000
+ShaderVariantCollection:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: NewShaderVariants
+  m_Shaders:
+  - first: {fileID: 66, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 46, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: DIRECTIONAL DIRLIGHTMAP_COMBINED FOG_EXP2 LIGHTMAP_ON LIGHTMAP_SHADOW_MIXING
+          SHADOWS_SCREEN SHADOWS_SHADOWMASK SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH SHADOWS_SCREEN
+          SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH _EMISSION
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH SHADOWS_SCREEN
+          SHADOWS_SOFT SHADOWS_SPLIT_SPHERES _EMISSION
+        passType: 4
+      - keywords: DIRECTIONAL LIGHTPROBE_SH UNITY_HDR_ON
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH _ALPHABLEND_ON
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTPROBE_SH _ALPHAPREMULTIPLY_ON
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTPROBE_SH _ALPHATEST_ON _METALLICGLOSSMAP
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH SHADOWS_SCREEN
+          _ALPHATEST_ON _METALLICGLOSSMAP
+        passType: 4
+      - keywords: DIRECTIONAL
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+      - keywords: FOG_EXP2 SHADOWS_DEPTH SHADOWS_SOFT SHADOWS_SPLIT_SPHERES _EMISSION
+        passType: 8
+      - keywords: SHADOWS_DEPTH _ALPHABLEND_ON
+        passType: 8
+      - keywords: SHADOWS_DEPTH _ALPHAPREMULTIPLY_ON
+        passType: 8
+      - keywords: FOG_EXP2 SHADOWS_DEPTH SHADOWS_SOFT SHADOWS_SPLIT_SPHERES _ALPHAPREMULTIPLY_ON
+        passType: 8
+      - keywords: SHADOWS_DEPTH _ALPHATEST_ON _METALLICGLOSSMAP
+        passType: 8
+  - first: {fileID: 106, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+      - keywords: FOG_EXP2
+        passType: 0
+      - keywords: _SUNDISK_SIMPLE
+        passType: 0
+      - keywords: UNITY_HDR_ON _SUNDISK_SIMPLE
+        passType: 0
+      - keywords: FOG_EXP2 _SUNDISK_HIGH_QUALITY
+        passType: 0
+  - first: {fileID: 207, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 211, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH
+        passType: 4
+      - keywords: PROCEDURAL_INSTANCING_ON
+        passType: 8
+  - first: {fileID: 9000, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9001, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9002, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9003, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9004, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9007, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9101, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9103, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+      - keywords: FOG_EXP2
+        passType: 0
+      - keywords: FOG_EXP2 UNITY_HDR_ON
+        passType: 0
+  - first: {fileID: 10752, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+      - keywords: UNITY_HDR_ON
+        passType: 0
+  - first: {fileID: 10755, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+      - keywords: FOG_EXP2
+        passType: 0
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+  - first: {fileID: 4800000, guid: 4c57aec32f64e4f45a82539396542fab, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL DIRLIGHTMAP_COMBINED FOG_EXP2 LIGHTMAP_ON LIGHTMAP_SHADOW_MIXING
+          SHADOWS_SHADOWMASK
+        passType: 4
+      - keywords: DIRECTIONAL DIRLIGHTMAP_COMBINED FOG_EXP2 LIGHTMAP_ON LIGHTMAP_SHADOW_MIXING
+          SHADOWS_SCREEN SHADOWS_SHADOWMASK SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH
+        passType: 4
+      - keywords: 
+        passType: 8
+  - first: {fileID: 4800000, guid: fe393ace9b354375a9cb14cdbbc28be4, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP2
+        passType: 0
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+  - first: {fileID: 4800000, guid: 7c886f438f6086a49aed303955c12130, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+  - first: {fileID: 4800000, guid: ad1c86ef04c293b4fb2c3b215592913b, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING SHADOWS_SCREEN SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 0
+  - first: {fileID: 4800000, guid: bd8d701d417688340a136b059d5f5e23, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP2
+        passType: 0
+      - keywords: FOG_EXP2 UNITY_HDR_ON
+        passType: 0
+  - first: {fileID: 4800000, guid: 4e0dd611a0f3b084380704cfde04f9ec, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING SHADOWS_SHADOWMASK
+        passType: 0
+  - first: {fileID: 4800000, guid: e73debc76df897546b4be4dd6d467f3d, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING SHADOWS_SCREEN SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 0
+  - first: {fileID: 4800000, guid: b7a7648e77588cd45950b136cbe2f539, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH SHADOWS_SCREEN
+          SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 4
+  - first: {fileID: 4800000, guid: e07357ebf0292164aa1b985dbadd286a, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING SHADOWS_SCREEN SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 0
+  - first: {fileID: 4800000, guid: c3a2230d23a77ab4fb1eb387ad4317bb, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH SHADOWS_SCREEN
+          SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 4
+  - first: {fileID: 4800000, guid: 2be52b264e92db246a61067bbed43055, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP2
+        passType: 0
+      - keywords: FOG_EXP2 LIGHTMAP_SHADOW_MIXING
+        passType: 0
+  - first: {fileID: 4800000, guid: 3d38addb1002f0b4b9c87cfcf2cfda24, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH SHADOWS_SCREEN
+          SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 4
+      - keywords: 
+        passType: 8
+      - keywords: FOG_EXP2 SHADOWS_DEPTH SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 8
+  - first: {fileID: 4800000, guid: 45d65c79090cd35418b0b999fc9c1938, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH SHADOWS_SCREEN
+          SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 4
+      - keywords: FOG_EXP2 SHADOWS_DEPTH SHADOWS_SOFT SHADOWS_SPLIT_SPHERES
+        passType: 8
+  - first: {fileID: 4800000, guid: d9941ab4410bf7443808bdfe78514000, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP2 LIGHTMAP_SHADOW_MIXING LIGHTPROBE_SH
+        passType: 4
+      - keywords: DIRECTIONAL LIGHTPROBE_SH UNITY_HDR_ON
+        passType: 4
+      - keywords: DIRECTIONAL UNITY_HDR_ON
+        passType: 5
