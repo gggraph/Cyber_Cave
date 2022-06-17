@@ -1,0 +1,155 @@
+// Kernels for CLL of voxel data. Call each of those kernels in order. 
+#pragma kernel CCL_SIMPLIFY
+#pragma kernel CCL_INIT
+#pragma kernel CCL_ROWCOLSCAN
+#pragma kernel CCL_ROWSCAN
+#pragma kernel CCL_REFINE
+
+RWTexture3D<float> EditTexture;
+int voxelNumbers;
+float isoLevel;
+RWBuffer<int> bit;
+RWBuffer<int>  classifications;
+RWBuffer<int>  equivalents;
+
+int numPointsPerAxis;
+float3 chunkCoord;
+
+int3 GetPositionFromIndexValue(int index)
+{
+	int x = index % voxelNumbers;
+	int y = (index % (voxelNumbers * voxelNumbers)) / voxelNumbers;
+	int z = index / (voxelNumbers * voxelNumbers);
+	return int3(x, y, z);
+
+}
+int GetValueFromVectorPosition(int3 vec)
+{
+	return (int)vec.z * voxelNumbers * voxelNumbers + (int)vec.y * voxelNumbers + (int)vec.x;
+}
+int findRoot(int3 id)
+{
+	int root = equivalents[classifications[GetValueFromVectorPosition(id)]];
+	int parent = equivalents[root];
+
+	while (root != parent)
+	{
+		root = parent;
+		parent = equivalents[root];
+	}
+	return root;
+}
+float sampleDensity(int3 coord) {
+    coord = max(0, min(coord, voxelNumbers));
+    return EditTexture[coord];
+}
+int getIndexFromChunkCoord(int3 coord)
+{
+    coord = max(0, min(coord, voxelNumbers));
+    return GetValueFromVectorPosition(coord);
+}
+
+
+[numthreads(8, 8, 8)]
+void CCL_SIMPLIFY(int3 id : SV_DispatchThreadID)
+{
+    if (id.x >= numPointsPerAxis-1|| id.y >= numPointsPerAxis -1|| id.z >= numPointsPerAxis-1)
+    {
+        return;
+    } 
+    int _set = 0; 
+    int3 coord = id + int3(chunkCoord);
+    if (sampleDensity(coord) < isoLevel)
+    {
+        _set = 1;
+    }
+    
+    int idx = getIndexFromChunkCoord(coord);
+    bit[idx] = _set;
+    
+}
+[numthreads(8,8,8)]
+void CCL_INIT (int3 id : SV_DispatchThreadID)
+{
+    if (id.x >= voxelNumbers || id.y >= voxelNumbers || id.z >= voxelNumbers)
+    {
+        return;
+    }
+    // process default labeling
+    int idx = GetValueFromVectorPosition(id);
+	classifications[idx] = idx;
+	equivalents[idx] = idx;
+}
+
+[numthreads(8, 8, 8)]
+void CCL_ROWCOLSCAN(int3 id : SV_DispatchThreadID)
+{
+    if (id.x >= voxelNumbers || id.y >= voxelNumbers || id.z >= voxelNumbers)
+    {
+        return;
+    }
+    if (bit[GetValueFromVectorPosition(id)] == 0) // TREAT BIT EQUAL 0? Nop this is not worth it.
+        return;
+    int3 coords[13];
+    coords[0] = id + int3(-1, 0, 0);           // 02: w
+    coords[1] = id + int3(-1, -1, 0);         // 03: sw
+    coords[2] = id + int3(-1, 0, -1);          // 05: fw
+    coords[3] = id + int3(-1, -1, -1);         // 06: fsw
+    coords[4] = id + int3(-1, 1, -1);         // 07: fnw
+    coords[5] = id + int3(1, -1, 0);          // 12: se
+    coords[6] = id + int3(1, 0, -1);          // 14: fe
+    coords[7] = id + int3(1, -1, -1);         // 15: fse
+    coords[8] = id + int3(1, 1, -1);         // 16: fne
+    coords[9] = id + int3(0, -1, 0);          // 21: se
+    coords[10] = id + int3(0, 0, -1);          // 23: fe
+    coords[11] = id + int3(0, -1, -1);         // 24: fse
+    coords[12] = id + int3(0, 1, -1);         // 25: fne
+
+    for (int i = 0; i < 13; i++)
+    {
+        if (coords[i].x < voxelNumbers && coords[i].y < voxelNumbers && coords[i].z < voxelNumbers
+            && coords[i].x >= 0 && coords[i].y >= 0 && coords[i].z >= 0)
+        {
+            if (bit[GetValueFromVectorPosition(coords[i])] == 1)
+            {
+                if (classifications[GetValueFromVectorPosition(coords[i])] < classifications[GetValueFromVectorPosition(id)])
+                {
+                    equivalents[classifications[GetValueFromVectorPosition(id)]] =
+                        equivalents[classifications[GetValueFromVectorPosition(coords[i])]];
+                }
+            }
+        }
+    }
+	
+}
+[numthreads(8, 8, 8)]
+void CCL_ROWSCAN(int3 id : SV_DispatchThreadID)
+{
+    if (id.x >= voxelNumbers || id.y >= voxelNumbers || id.z >= voxelNumbers)
+    {
+        return;
+    }
+    int3 west = id + int3(-1, 0, 0);
+    if (id.x > 0 && bit[GetValueFromVectorPosition(west)] == bit[GetValueFromVectorPosition(id)])
+    {
+        if (classifications[GetValueFromVectorPosition(west)] < classifications[GetValueFromVectorPosition(id)])
+        {
+            equivalents[findRoot(west)] = findRoot(id);
+        }
+        else if (classifications[GetValueFromVectorPosition(west)] > classifications[GetValueFromVectorPosition(id)])
+        {
+            equivalents[findRoot(id)] = findRoot(west);
+        }
+    }
+
+}
+
+[numthreads(8, 8, 8)]
+void CCL_REFINE(int3 id : SV_DispatchThreadID)
+{
+    if (id.x >= voxelNumbers || id.y >= voxelNumbers || id.z >= voxelNumbers)
+    {
+        return;
+    }
+    classifications[GetValueFromVectorPosition(id)] = findRoot(id);
+}

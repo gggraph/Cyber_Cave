@@ -1,0 +1,339 @@
+// Each #kernel tells which function to compile; you can have many kernels
+// Basic primitive
+#pragma kernel ApplySphere
+#pragma kernel ApplyBox
+#pragma kernel ApplyEllipsoid
+#pragma kernel ApplyCylinder
+// Basic Copy/Erase from other chunks
+#pragma kernel ClearChunk
+#pragma kernel CopyChunk
+#pragma kernel Dump
+#pragma kernel Populate
+
+// @ General texture info
+RWTexture3D<float> DensityTexture; // voxel data of the moodulable
+int textureSize;				   // size of the voxel data per axis
+int numPointsPerAxis;              // number of points per axis
+float3 chunkCoord;                 // coordinate of chunk if processing  chunk by chunk
+float isoLevel;
+
+//@ For Dumping (getting voxel data, setting voxel data)
+RWBuffer<float> recipient;
+RWBuffer<float> recipientB;
+
+//@ For copying data of other voxel data moodulable
+// The copy texture is the texture of the chunk to copy
+RWTexture3D<float> copyTexture;
+RWTexture3D<half4> copyColor;
+int copyTexSize;
+float3 copychunkCoord; // The chunk coordinate.
+float3 copyOffset;     // the offset where we want to copy the texture
+int copyNPPA;          // the numpoint per axis of the copyTexture
+bool Substract = false;
+
+// @ General Brush information
+int3 brushCentre;
+float weight;
+bool _smoothstep = false;
+
+// @ For sphere application
+float brushRadius;
+
+// @ For Box application
+int3     extends;
+float4   quaternion;
+
+// @ For Cylinder application
+float    height;
+
+//@ For Apply Color
+RWTexture3D<half4> ColoringTexture;
+float4   brushColor;
+bool     Paint;
+
+
+float smoothstep(float minVal, float maxVal, float t) {
+	t = saturate((t - minVal) / (maxVal - minVal));
+	return t * t * (3 - 2 * t);
+}
+
+float4 qmul(float4 q1, float4 q2)
+{
+	return float4(
+		q2.xyz * q1.w + q1.xyz * q2.w + cross(q1.xyz, q2.xyz),
+		q1.w * q2.w - dot(q1.xyz, q2.xyz)
+		);
+}
+
+float3 rotate_vector(float3 v, float4 r)
+{
+	float4 r_c = r * float4(-1, -1, -1, 1);
+	return qmul(r, qmul(float4(v, 0), r_c)).xyz;
+}
+
+
+[numthreads(8, 8, 8)]
+void ApplyBox(int3 id : SV_DispatchThreadID)
+{
+	if (id.x >= textureSize || id.y >= textureSize || id.z >= textureSize) {
+		return;
+	}
+	int3 p = id - brushCentre; // offset from box center
+	// Apply rotation from mat 4x4 
+	p = rotate_vector(p, quaternion);
+	//p = mul(rotMat, float4(p, 1)); 
+	if( p.x <= extends.x && p.x > -extends.x
+		&& p.y <= extends.y && p.y > -extends.y
+		&& p.z <= extends.z && p.z > -extends.z)
+	{
+
+		if (_smoothstep)
+		{
+			// @ Not using brush weight gives nice result for cube
+			if (!Paint)
+				DensityTexture[id] += weight * 0.02;
+			else
+			{
+				// @ using brushWeight here is needed 
+				int sqrDst = dot(p, p);
+				float dst = sqrt(sqrDst);
+				float b1 = 1 - smoothstep(extends.x * 0.7, extends.x, dst);
+				float b2 = 1 - smoothstep(extends.y * 0.7, extends.y, dst);
+				float b3 = 1 - smoothstep(extends.z * 0.7, extends.z, dst);
+				float brushWeight = (b1 + b2 + b3) / 3;
+
+				half4 newColor =  brushColor * 0.8 * brushWeight;
+				half4 newColorB = brushColor * 0.8;
+
+				ColoringTexture[id] = (newColor + newColorB) / 2;
+			}
+		}
+		else
+		{
+
+			if (!Paint)
+				DensityTexture[id] = weight;
+			else
+				ColoringTexture[id] = brushColor;
+		}
+
+		// inside ... 
+		DensityTexture[id] = weight;
+	}
+	
+
+}
+
+[numthreads(8, 8, 8)]
+void ApplyEllipsoid(int3 id : SV_DispatchThreadID)
+{
+	if (id.x >= textureSize || id.y >= textureSize || id.z >= textureSize) {
+		return;
+	}
+	// a, b, c are the three distance point of ellipsoid
+	// the ellipsoid is through (a,0,0) (0,b,0) (0,0,c)
+	//(x/a)2 + (y/b)2 + (z/c)2 <  1 : equal inside ellipsoid.
+	int3 p = id - brushCentre;
+	p = rotate_vector(p, quaternion);
+
+	float d1 = pow((float)(p.x) / extends.x, 2);
+	float d2 = pow((float)(p.y) / extends.y, 2);
+	float d3 = pow((float)(p.z) / extends.z, 2);
+	float dst = pow((float)(p.x) / extends.x, 2) + pow((float)(p.y) / extends.y, 2) + pow((float)(p.z) / extends.z, 2);
+
+	if (dst < 1) 
+	{
+		if (_smoothstep)
+		{
+			// More dst is close to 0. more we are in ... 
+			float brushWeight = 1 - dst; // we can some refining here
+
+			if (!Paint)
+				DensityTexture[id] += weight * 0.02 * brushWeight;
+			else
+			{
+				half4 newColor = brushColor * 0.8 * brushWeight;
+				ColoringTexture[id] = newColor;
+			}
+		}
+		else
+		{
+
+			if (!Paint)
+				DensityTexture[id] = weight;
+			else
+				ColoringTexture[id] = brushColor;
+		}
+	}
+		
+
+	
+}
+
+[numthreads(8, 8, 8)]
+void ApplyCylinder(int3 id : SV_DispatchThreadID)
+{
+	if (id.x >= textureSize || id.y >= textureSize || id.z >= textureSize) {
+		return;
+	}
+	float3 q = id - brushCentre;
+	q = rotate_vector(q, quaternion);
+
+	float3 pt1 = float3(0,-height,0); 
+	float3 pt2 = float3(0, height, 0);
+	
+	float3 vec = pt2 - pt1;
+	float  c = length(vec) * brushRadius;
+
+	if ( dot(q-pt1,vec) >= 0 && dot(q-pt2,vec) <= 0 && length(cross(q-pt1, vec)) <= c ) 
+	{
+		if (!Paint)
+			DensityTexture[id] = weight;
+		else
+			ColoringTexture[id] = brushColor;
+	}
+}
+
+[numthreads(8,8,8)]
+void ApplySphere (int3 id : SV_DispatchThreadID)
+{
+	if (id.x >= textureSize || id.y >= textureSize || id.z >= textureSize) {
+		return;
+	}
+	
+	int3 offset = id - brushCentre;
+	int sqrDst = dot(offset, offset); 
+
+	if (sqrDst <= brushRadius * brushRadius) {
+		if (_smoothstep)
+		{
+			float dst = sqrt(sqrDst);
+			float brushWeight = 1 - smoothstep(brushRadius * 0.7, brushRadius, dst);
+			
+			if ( !Paint)
+				DensityTexture[id] += weight * 0.02 * brushWeight;
+			else
+				ColoringTexture[id] = brushColor * 0.8 * brushWeight;
+		}
+		else
+		{
+			if (!Paint)
+				DensityTexture[id] = weight;
+			else
+				ColoringTexture[id] = brushColor;
+		}
+	}
+	
+}
+half4 sampleColor(int3 coord) {
+	coord = max(0, min(coord, textureSize));
+	return ColoringTexture[coord];
+}
+float sampleDensity(int3 coord) {
+	coord = max(0, min(coord, textureSize));
+	return DensityTexture[coord];
+}
+int GetValueFromVectorPosition(int3 vec)
+{
+	return (int)vec.z * textureSize * textureSize + (int)vec.y * textureSize + (int)vec.x;
+}
+int getIndexFromChunkCoord(int3 coord)
+{
+	coord = max(0, min(coord, textureSize));
+	return GetValueFromVectorPosition(coord);
+}
+// Dump or populate data from chunk.
+[numthreads(8, 8, 8)]
+void Dump(int3 id : SV_DispatchThreadID)
+{
+	if (id.x >= numPointsPerAxis - 1 || id.y >= numPointsPerAxis - 1 || id.z >= numPointsPerAxis - 1)
+	{
+		return;
+	}
+	int3 coord = id + int3(chunkCoord);
+	int idx = getIndexFromChunkCoord(coord);
+	recipient[idx] = sampleDensity(coord);
+	idx *= 4;
+	half4 color = sampleColor(coord);
+	recipientB[idx] = color.r;
+	recipientB[idx + 1] = color.g;
+	recipientB[idx + 2] = color.b;
+	recipientB[idx + 3] = color.a;
+
+}
+
+[numthreads(8, 8, 8)]
+void Populate(int3 id : SV_DispatchThreadID)
+{	
+	if (id.x >= numPointsPerAxis - 1 || id.y >= numPointsPerAxis - 1 || id.z >= numPointsPerAxis - 1)
+	{
+		return;
+	}
+	int3 coord = id + int3(chunkCoord);
+	int idx = getIndexFromChunkCoord(coord);
+	coord = max(0, min(coord, textureSize));
+	DensityTexture[coord] = recipient[idx];
+	idx *= 4;
+	ColoringTexture[coord] = half4(recipientB[idx], recipientB[idx + 1], recipientB[idx + 2], recipientB[idx + 3]);
+}
+
+// @ Do i Clear Color too ? If so, pass coloringtexture to kernel
+[numthreads(8, 8, 8)]
+void ClearChunk(int3 id : SV_DispatchThreadID)
+{
+	int numCubesPerAxis = numPointsPerAxis - 1; 
+	if (id.x >= numCubesPerAxis || id.y >= numCubesPerAxis || id.z >= numCubesPerAxis)
+	{
+		return;
+	}
+	int3 coord = id + int3(chunkCoord);
+	int3 index = max(0, min(coord, textureSize));
+	DensityTexture[coord] = 1;
+}
+
+[numthreads(8, 8, 8)]
+void CopyChunk(int3 id : SV_DispatchThreadID)
+{
+	// Copy density data from another moodulable to this one.
+	// This functions need to be called from other moodulable chunk routine 
+
+	int numCubesPerAxis = copyNPPA - 1;
+	if (id.x >= numCubesPerAxis || id.y >= numCubesPerAxis || id.z >= numCubesPerAxis)
+	{
+		return;
+	}
+	int3 copyCoord = id + int3(copychunkCoord);
+
+	// we cannot use sampleDensity because other moodulable densityTexture could be not the same
+	// Density of current chunk coord
+	float d1 = copyTexture[max(0, min(copyCoord, copyTexSize))];
+	// now get density of other chunk...
+	int3 coord = copyCoord + copyOffset;
+	int3 index = max(0, min(coord, textureSize));
+	float d2 = sampleDensity(coord);
+
+	//@ do the same for coloring 
+	half4 c1 = copyColor[max(0, min(copyCoord, copyTexSize))];
+
+	// @ Substract : Only Copy where our form is populated (isolevel < 0) and other form is empty (isolevel > 0) 
+	if (Substract && d2 < 0 && d1 >= 0) // we can also change 0 by isoLevel. but i guess it will not move. 
+	{
+		DensityTexture[index] = -d1;
+		//@ Set Color black ? we have multiple strategy here ? 
+		// we can either : 
+		// 1 - copy color to leave trace of other moodulable.
+		// 2-  do nothing
+		// 3-  clear color of chunk
+		//ColoringTexture[index]=half4(0,0,0,1);
+	}
+	// @ Merging : Only Copy where our form is empty (isolevel > 0) and other form is populated (isolevel < 0) 
+	if (!Substract && d2 >= 0 && d1 < 0)
+	{
+		DensityTexture[index] = d1;
+		ColoringTexture[index] = c1;
+	}
+
+}
+
+
+
