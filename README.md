@@ -61,6 +61,6 @@ Any headset can act as a "server" and get authority on what is saved and what is
 
 * Théo Bonnet, 3d modeling
 * Lionel Broye, project director.
-* Armandine Chasles, narrative designer
+* Armandine Chasle, narrative designer
 * Léon Denise, artist, vfx/shader programmer
 * Gael Goutard, developper
