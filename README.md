@@ -21,7 +21,7 @@ User automatically connect to the cybercave world where he can choose an avatar 
 
 In this demo version, there is two main activities you can share with others : painting and sculpting. 
 
-###  Paint with others on any mesh 
+###  Paint with others
 
 <p align="center">
   <img src=git-content/painting.gif />
@@ -33,7 +33,7 @@ Painting actions are synchronized through the network, it allows multiple users 
 
 Paintable object's textures can be exported as .svg or .gcode files.
 
-###  Sculpt mesh with marching cubes
+###  Sculpt mesh 
 
 <p align="center">
   <img src=git-content/sculptingmc.gif />
