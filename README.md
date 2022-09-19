@@ -5,7 +5,9 @@
 
 # CyberCave
 
-CyberCave is a multiplayer experience in VR where users can walk, chat, paint togethers in a persistant world. Project was launched by Esad Orléans.
+CyberCave is a multiplayer experience in VR where users can walk, chat, paint togethers in a persistant world. 
+
+The project was launched by Esad Orléans, this repository contains all source files of the Unity project. Cyber Cave could continue in near future, but for the moment, the software appears as a demo version.
 
 ## Networking and Avatar
 
