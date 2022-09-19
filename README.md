@@ -27,11 +27,11 @@ In this demo version, there is two main activities you can share with others : p
   <img src=git-content/painting.gif />
 </p>
 
-User can paint on any mesh who have uv coordinate by using painter objects. There is actually 3 type of painters : brushes, pens and sprays. All are customizable in the unity editor. You can add more painting tools by adding **Painter** component to any gameobject of the scene. You can add more surface for painting, adding **Paintable** component to any mesh of your choice.
+User can paint on any mesh who have uv coordinates using **painter** component. There is actually 3 types of painter : brushes, pens and sprays. All are customizable in the unity editor. You can add more painting tools by adding **Painter** component to any gameobject of the scene. Add **Paintable** component to any mesh of your choice .
 
 Painting actions are synchronized through the network, it allows multiple users to experiment drawing on the same canvas, share theirs paintings...
 
-Paintable object's textures can be exported as .svg file or .gcode files.
+Paintable object's textures can be exported as .svg or .gcode files.
 
 ###  Sculpt mesh with marching cubes
 
@@ -39,7 +39,9 @@ Paintable object's textures can be exported as .svg file or .gcode files.
   <img src=git-content/sculptingmc.gif />
 </p>
 
-Users can sculpt shapes by adding or substracting volumes with different tools. Mesh generation works with marching cubes algorithm. Physics work with CCL algorithm. You can add more tools adding **Mooduler** component to any gamobject in the scene and generate default shapes using **MoodulerCreator** component. Sculpt can only be painted with **Mooduler** gameobjects. Shapes have no uvs, shape's painting works with vertex colors. 
+Users can sculpt shapes by adding or substracting volumes with different tools (**Mooduler** component). Mesh generation works with marching cubes algorithm. Physics work with CCL algorithm. Generate default shapes by using **MoodulerCreator** component. Sculpts can only be painted with **Mooduler** gameobjects : shapes have no uvs, it works with vertex colors. 
+
+Sculpting is synchronised. Shapes can be exported as .obj, .stl, .gcode files. 
 
 ## Hand interaction
 
