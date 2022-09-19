@@ -5,9 +5,9 @@
 
 # CyberCave
 
-CyberCave is a multiplayer experience in VR where users can walk, chat, paint together in a persistant world. 
+CyberCave is a **multiplayer experience in VR** where users can walk, chat, paint together in a **persistant world**. 
 
-The project was launched by Esad Orléans, this repository contains all source files of the Unity project. Cyber Cave development could continue in near future, but for the moment, the software appears as a demo version.
+The project was launched by Esad Orléans, this repository contains all source files of the Unity project. Cyber Cave development could continue in near future, but for the moment, the software appears **as a demo version**.
 
 ## Networking and Avatar
 
@@ -27,7 +27,7 @@ In this demo version, there is two main activities you can share with others : p
   <img src=git-content/painting.gif />
 </p>
 
-User can paint on any mesh who have uv coordinates using **painter** component. There is actually 3 types of painter : brushes, pens and sprays. All are customizable in the unity editor. You can add more painting tools by adding **Painter** component to any gameobject of the scene. Add **Paintable** component to any mesh of your choice .
+User can paint on any mesh who have uv coordinates using **painter** component. There is actually 3 types of painter : brushes, pens and sprays. All are customizable in the unity editor. Add **Paintable** component to any surface you would like to draw .
 
 Painting actions are synchronized through the network, it allows multiple users to experiment drawing on the same canvas, share theirs paintings...
 
@@ -45,12 +45,22 @@ Sculpting is synchronised. Shapes can be exported as .obj, .stl, .gcode files.
 
 ## Hand interaction
 
+**gif ici manquant**
+Hand pose **recognition** is available. Users can interact the world with **sign langage**. 
+
 ## Server system, updates and persistance
+
+<p align="center">
+  <img src=git-content/servs.gif />
+</p>
+
+Most of users interaction with the world is saved server-side. At connection, users download latest world data to see what happened while they was off-line.
+Any headset can act as a "server" and get authority on what is saved and what is the official state of the world with the use of a **single file** .
 
 ## Contributors
 
 * Théo Bonnet, 3d modeling
 * Lionel Broye, project director.
 * Armandine Chasles, narrative designer
-* Léon Denise, artist, vfx/shader programmer.
+* Léon Denise, artist, vfx/shader programmer
 * Gael Goutard, developper
