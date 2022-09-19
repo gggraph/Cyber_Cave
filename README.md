@@ -32,6 +32,6 @@ CyberCave is a multiplayer experience in VR where users can walk, chat, paint to
 
 * Théo Bonnet, 3d modeling
 * Lionel Broye, project director.
-* Armandine Chasles, narrative experience
+* Armandine Chasles, narrative designer
 * Léon Denise, artist, vfx/shader programmer.
 * Gael Goutard, developper
