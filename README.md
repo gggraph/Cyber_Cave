@@ -18,3 +18,10 @@ CyberCave is a multiplayer experience in VR where users can walk, chat, paint to
 <p align="center">
   <img src=git-content/painting.gif />
 </p>
+
+
+###  Sculpt mesh with marching cubes
+
+<p align="center">
+  <img src=git-content/sculptingmc.gif />
+</p>
