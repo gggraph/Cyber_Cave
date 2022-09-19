@@ -5,7 +5,7 @@
 
 # CyberCave
 
-CyberCave is a **multiplayer experience in VR** where users can walk, chat, paint together in a **persistant world**. 
+CyberCave is a **multiplayer experience in VR** where users can walk, chat, paint together in a **persistent world**. 
 
 The project was launched by Esad Orléans, this repository contains all source files of the Unity project. Cyber Cave development could continue in near future, but for the moment, the software appears **as a demo version**.
 
@@ -48,7 +48,7 @@ Sculpting is synchronised. Shapes can be exported as .obj, .stl, .gcode files.
 **gif ici manquant**
 Hand pose **recognition** is available. Users can interact the world with **sign langage**. 
 
-## Server system, updates and persistance
+## Server system, updates and persistence
 
 <p align="center">
   <img src=git-content/servs.gif />
