@@ -19,7 +19,7 @@ User automatically connect to the cybercave world where he can choose an avatar 
 
 ## Tools
 
-In this demo version, there is two main activities you can share with others : painting and sculpting. 
+In this demo version, there is two main activities : painting and sculpting. 
 
 ###  Paint with others
 
@@ -39,7 +39,7 @@ Paintable object's textures can be exported as .svg or .gcode files.
   <img src=git-content/sculptingmc.gif />
 </p>
 
-Users can sculpt shapes by adding or substracting volumes with different tools (**Mooduler** component). Mesh generation works with marching cubes algorithm. Physics work with CCL algorithm. Generate default shapes by using **MoodulerCreator** component. Sculpts can only be painted with **Mooduler** gameobjects : shapes have no uvs, it works with vertex colors. 
+Users can sculpt shapes by adding or substracting volumes with different tools (**Mooduler** component). Mesh generation works with marching cubes algorithm. Physics work with CCL algorithm. Generate default shapes by using **MoodulerCreator** component. Sculpts can only be painted with **Mooduler** gameobjects : shapes have no uvs, it works with vertex colors and triplanar mapping. 
 
 Sculpting is synchronised. Shapes can be exported as .obj, .stl, .gcode files. 
 
